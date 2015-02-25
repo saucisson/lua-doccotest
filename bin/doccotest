@@ -45,8 +45,14 @@ if not args then
   os.exit (1)
 end
 
-if type (args.inputs) == "string" and args.inputs ~= "" then
-  args.inputs = { args.inputs }
+if args.inputs == nil then
+  args.inputs = {}
+elseif type (args.inputs) == "string" then
+  if args.inputs ~= "" then
+    args.inputs = { args.inputs }
+  else
+    args.inputs = {}
+  end
 end
 table.insert (args.inputs, 1, args.input)
 
