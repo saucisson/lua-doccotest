@@ -26,10 +26,10 @@ build = {
   modules = {
     ["doccotest"] = "src/doccotest.lua",
   },
-}
-
-install = {
-  bin = {
-    ["doccotest"] = "bin/doccotest",
+  install = {
+    bin = {
+      ["doccotest"] = "bin/doccotest",
+    },
   },
 }
+
