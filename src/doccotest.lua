@@ -206,6 +206,8 @@ return io.stdout:read "*all", io.stderr:read "*all"
           local patterns = {}
           for i = 1, #result do
             local line = result [i]
+            -- http://lua-users.org/wiki/StringTrim (trim6)
+            line = line:match "^()%s*$" and "" or line:match "^%s*(.*%S)"
             if not line:match "^%s*%(%.%.%.%)%s*$" then
               -- http://stackoverflow.com/questions/9790688/escaping-strings-for-gsub
               line = line:gsub ('%%', '%%%%')
