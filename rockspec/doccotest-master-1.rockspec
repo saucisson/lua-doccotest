@@ -27,3 +27,9 @@ build = {
     ["doccotest"] = "src/doccotest.lua",
   },
 }
+
+install = {
+  bin = {
+    ["doccotest"] = "bin/doccotest",
+  },
+}
