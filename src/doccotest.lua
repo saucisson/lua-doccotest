@@ -23,7 +23,8 @@ string_metatable.__mod = require "i18n.interpolate"
 
 i18n.load {
   en = {
-    ["inputs-help"   ] = "paths to the source code files",
+    ["input-help"    ] = "path to the source code file",
+    ["inputs-help"   ] = "paths to other source code files",
     ["output-help"   ] = "path to the output file",
     ["format-help"   ] = "output format: TAP",
     ["verbose-help"  ] = "enable verbose mode",
@@ -55,6 +56,10 @@ end
 
 cli:set_name (arg [0])
 cli:add_argument (
+  "input",
+  i18n "input-help"
+)
+cli:optarg (
   "inputs",
   i18n "inputs-help"
 )
@@ -73,13 +78,15 @@ cli:add_flag (
   i18n "verbose-help"
 )
 local args = cli:parse_args ()
-if type (args.inputs) == "string" and args.inputs ~= "" then
-  args.inputs = { args.inputs }
-end
-if not args or #args.inputs == 0 then
+if not args then
   cli:print_help ()
   os.exit (1)
 end
+
+if type (args.inputs) == "string" and args.inputs ~= "" then
+  args.inputs = { args.inputs }
+end
+table.insert (args.inputs, 1, args.input)
 
 if args.verbose then
   logger:setLevel (logging.DEBUG)
@@ -282,7 +289,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
             to       = session.to,
           }))
           tests [#tests+1] = {
-            id       = #tests,
+            id       = #tests + 1,
             filename = filename,
             from     = session.from,
             to       = session.to,
@@ -297,7 +304,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
             stderr   = stderr,
           }))
           tests [#tests+1] = {
-            id       = #tests,
+            id       = #tests + 1,
             filename = filename,
             from     = session.from,
             to       = session.to,
