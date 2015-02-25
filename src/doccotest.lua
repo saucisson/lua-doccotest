@@ -308,7 +308,7 @@ function DoccoTest:tap (filename)
       end
     end
   end
-  self.logger:info (self:translate ("tap-done", {
+  self.logger:debug (self:translate ("tap-done", {
     filename  = filename,
   }))
 end
