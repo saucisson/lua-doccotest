@@ -1,3 +1,68 @@
 #! /usr/bin/env lua
 
-require "doccotest"
+local defaults = {
+  format="TAP",
+  output="test-results.txt",
+}
+
+if _G.cli then
+  return defaults
+else
+  _G.cli = true
+end
+
+local DoccoTest  = require "doccotest" . new ()
+local cli        = require "cliargs"
+local logging    = require "logging"
+local logger     = DoccoTest.logger
+
+cli:set_name (arg [0])
+cli:add_argument (
+  "input",
+  DoccoTest:translate "input-help"
+)
+cli:optarg (
+  "inputs",
+  DoccoTest:translate "inputs-help"
+)
+cli:add_option (
+  "--output=<filename>",
+  DoccoTest:translate "output-help",
+  tostring (defaults.output)
+)
+cli:add_option (
+  "--format=<format>",
+  DoccoTest:translate "format-help",
+  tostring (defaults.format)
+)
+cli:add_flag (
+  "-v, --verbose",
+  DoccoTest:translate "verbose-help"
+)
+local args = cli:parse_args ()
+if not args then
+  cli:print_help ()
+  os.exit (1)
+end
+
+if type (args.inputs) == "string" and args.inputs ~= "" then
+  args.inputs = { args.inputs }
+end
+table.insert (args.inputs, 1, args.input)
+
+if args.verbose then
+  DoccoTest.logger:setLevel (logging.DEBUG)
+else
+  DoccoTest.logger:setLevel (logging.INFO)
+end
+
+DoccoTest:test    (args.inputs)
+DoccoTest:summary ()
+if args.format:lower () == "tap" then
+  DoccoTest:tap (args.output)
+else
+  logger:error (DoccoTest:translate ("unknown-format", {
+    args.format,
+  }))
+  os.exit (1)
+end

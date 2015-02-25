@@ -24,7 +24,9 @@ dependencies = {
 build = {
   type    = "builtin",
   modules = {
-    ["doccotest"] = "src/doccotest.lua",
+    ["doccotest"   ] = "src/doccotest.lua",
+    ["doccotest.en"] = "src/doccotest/en.lua",
+    ["doccotest.fr"] = "src/doccotest/fr.lua",
   },
   install = {
     bin = {

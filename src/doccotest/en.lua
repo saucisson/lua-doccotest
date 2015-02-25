@@ -18,6 +18,6 @@ return {
     ["test-success"  ] = "!{green}Test passed at %{filename}:%{from}--%{to}.",
     ["test-failure"  ] = "!{red}Test failed at %{filename}:%{from}--%{to}: %{stdout}.",
     ["tap-done"      ] = "TAP output done in %{filename}.",
-    ["summary"       ] = "Summary: !{green}%{successes}!{reset} success / !{red}%{failures}!{reset} failure / !{yellow}%{total}!{reset} total.",
+    ["summary"       ] = "%{filename}: !{green}%{successes}!{reset} success / !{red}%{failures}!{reset} failure / !{yellow}%{total}!{reset} total.",
   }
 }
