@@ -163,6 +163,7 @@ function print (...)
   end
   io.write "\n"
 end
+__TEST__  = true
 io.stdout = io.tmpfile ()
 io.stderr = io.tmpfile ()
 io.output (io.stdout)
