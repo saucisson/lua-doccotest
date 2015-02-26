@@ -175,11 +175,35 @@ local code = [=====[]] .. table.concat (code, "\n") .. [[
 local ok, err
 res, err = loadstring (code)
 if not res then
-  io.stdout:write (err)
+  if type (err) ~= "table" then
+    err = tostring (err)
+  else
+    local serpent = require "serpent"
+    err = serpent.line (err, {
+      sortkeys = true,
+      compact  = true,
+      fatal    = false,
+      nocode   = true,
+      comment  = false,
+    })
+  end
+  io.stdout:write ("error: " .. err)
 else
   res, err = pcall (res)
   if not res then
-    io.stdout:write (err)
+    if type (err) ~= "table" then
+      err = tostring (err)
+    else
+      local serpent = require "serpent"
+      err = serpent.line (err, {
+        sortkeys = true,
+        compact  = true,
+        fatal    = false,
+        nocode   = true,
+        comment  = false,
+      })
+    end
+    io.stdout:write ("error: " .. err)
   end
 end
 ]]
@@ -209,6 +233,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
             line = line:gsub ("%(%.%.%.%)%s*$", "")
             -- http://lua-users.org/wiki/StringTrim (trim6)
             line = line:match "^()%s*$" and "" or line:match "^%s*(.*%S)"
+            local is_wildcard = line:match "%.%.%."
             if line ~= "" then
               -- http://stackoverflow.com/questions/9790688/escaping-strings-for-gsub
               line = line:gsub ('%%', '%%%%')
@@ -225,10 +250,13 @@ return io.stdout:read "*all", io.stderr:read "*all"
                          :gsub ('%?', '%%%?')
                          :gsub ("%%%.%%%.%%%.", ".*")
               line = "%s*" .. line .. "%s*"
+              if not is_wildcard then
+                line = line .. "[\r\n]+"
+              end
               patterns [i] = line
             end
           end
-          local pattern = "^" .. table.concat (patterns, "[\r\n]+") .. "$"
+          local pattern = "^" .. table.concat (patterns) .. "$"
           if stdout:match (pattern) then
             self.logger:info (self:translate ("test-success", {
               filename = filename,
