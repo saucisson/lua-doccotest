@@ -126,8 +126,8 @@ function DoccoTest:test (filenames)
             if not prompt then
               self.logger:debug (self:translate ("no-prompt", {
                 filename = filename,
-                from     = session.from + from - 1,
-                to       = session.from + to   - 1,
+                from     = session.from - 1,
+                to       = session.from - 1,
               }))
               break
             end
