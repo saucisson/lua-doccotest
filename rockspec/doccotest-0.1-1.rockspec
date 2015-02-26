@@ -28,6 +28,7 @@ dependencies = {
   "ansicolors ~> 1",
   "rings ~> 1",
   "lualogging ~> 1",
+  "serpent ~> 0",
 }
 
 build = {
