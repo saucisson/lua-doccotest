@@ -251,7 +251,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
                          :gsub ("%%%.%%%.%%%.", ".*")
               line = "%s*" .. line .. "%s*"
               if not is_wildcard then
-                line = line .. "[\r\n]+"
+                line = line .. "[\r\n]*"
               end
               patterns [i] = line
             end
