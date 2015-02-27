@@ -54,9 +54,6 @@ function DoccoTest:translate (string, t)
   return string
 end
 
---    > local x = 1
-
-
 function DoccoTest:test (filenames)
   assert (type (filenames) == "table")
   self.tests = {}
@@ -108,10 +105,16 @@ function DoccoTest:test (filenames)
           end
         end
       end
-      local ring = nil
+      local ring      = nil
+      local variables = nil
       for i = 1, #sessions do
         if not ring then
           ring = rings.new ()
+        end
+        if not variables then
+          variables = {
+            test = "TEST",
+          }
         end
         local session = sessions [i]
         local buffer  = session.buffer
@@ -168,6 +171,11 @@ io.stdout = io.tmpfile ()
 io.stderr = io.tmpfile ()
 io.output (io.stdout)
 ]]
+          for j = 1, #code do
+            code [j] = code [j]:gsub ("!{([%w-_}]+)}", function (name)
+              return variables [name] or ""
+            end)
+          end
           local to_run  =
 [[
 local code = [=====[]] .. table.concat (code, "\n") .. [[
@@ -230,10 +238,12 @@ return io.stdout:read "*all", io.stderr:read "*all"
           local patterns = {}
           for i = 1, #result do
             local line = result [i]
+            line = line:gsub ("!{([%w-_]+)}", function (name)
+              return variables [name] or ""
+            end)
             line = line:gsub ("%(%.%.%.%)%s*$", "")
             -- http://lua-users.org/wiki/StringTrim (trim6)
             line = line:match "^()%s*$" and "" or line:match "^%s*(.*%S)"
-            local is_wildcard = line:match "%.%.%."
             if line ~= "" then
               -- http://stackoverflow.com/questions/9790688/escaping-strings-for-gsub
               line = line:gsub ('%%', '%%%%')
@@ -250,14 +260,17 @@ return io.stdout:read "*all", io.stderr:read "*all"
                          :gsub ('%?', '%%%?')
                          :gsub ("%%%.%%%.%%%.", ".*")
               line = "%s*" .. line .. "%s*"
-              if not is_wildcard then
-                line = line .. "[\r\n]*"
-              end
-              patterns [i] = line
+              patterns [i] = line .. "[\r\n]*"
             end
           end
+          local extract = {}
           local pattern = "^" .. table.concat (patterns) .. "$"
-          if stdout:match (pattern) then
+          pattern = pattern:gsub ("%%%?{([%w-_]+)}", function (name)
+            extract [#extract+1] = name
+            return "([^\n\r]*)"
+          end)
+          local matches = { stdout:match (pattern) }
+          if #matches ~= 0 then
             self.logger:info (self:translate ("test-success", {
               filename = filename,
               from     = session.from,
@@ -270,6 +283,13 @@ return io.stdout:read "*all", io.stderr:read "*all"
               to       = session.to,
               success  = true,
             }
+            for j = 1, #matches do
+              local name  = extract [j]
+              local value = matches [j]
+              if name then
+                variables [name] = value
+              end
+            end
           else
             self.logger:info (self:translate ("test-failure", {
               filename = filename,
@@ -296,7 +316,8 @@ return io.stdout:read "*all", io.stderr:read "*all"
           }))
         else
           ring:close ()
-          ring = nil
+          ring      = nil
+          variables = nil
           self.logger:debug (self:translate ("ring-close", {
             filename = filename,
             from     = session.from,
