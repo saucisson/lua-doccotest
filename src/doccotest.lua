@@ -7,6 +7,7 @@ local colors     = require "ansicolors"
 local rings      = require "rings"
 local logging    = require "logging"
 logging.console  = require "logging.console"
+local has_luacov = pcall (require, "luacov")
 
 local string_metatable = getmetatable ""
 string_metatable.__mod = require "i18n.interpolate"
@@ -56,6 +57,7 @@ end
 
 local read_pattern  = "%?{([_%a][_%w]*)}"
 local write_pattern = "%!{([_%a][_%w]*)}"
+
 function DoccoTest:test (filenames)
   assert (type (filenames) == "table")
   self.tests = {}
@@ -217,6 +219,9 @@ else
   end
 end
 ]]
+          if has_luacov then
+            to_run = [[require "luacov"; ]] .. to_run
+          end
           local ok, err = ring:dostring (to_run)
           local _, stdout, stderr = ring:dostring [[
 io.stdout:seek "set"
