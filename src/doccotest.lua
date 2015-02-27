@@ -266,8 +266,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
                          :gsub ('%-', '%%%-')
                          :gsub ('%?', '%%%?')
                          :gsub ("%%%.%%%.%%%.", ".*")
-              line = "%s*" .. line .. "%s*"
-              patterns [i] = line .. "[\r\n]*"
+              patterns [i] = "%s*" .. line .. "%s*"
             end
           end
           local extract = {}
@@ -276,6 +275,8 @@ return io.stdout:read "*all", io.stderr:read "*all"
             extract [#extract+1] = name
             return "([^\n\r]*)"
           end)
+          stdout = stdout:gsub ("%c+", "")
+          stdout = stdout:gsub ("\27%[[%d;]+m", "")
           local matches = { stdout:match (pattern) }
           if #matches ~= 0 then
             self.logger:info (self:translate ("test-success", {
