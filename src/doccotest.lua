@@ -143,7 +143,7 @@ function DoccoTest:test (filenames)
             current = current + 1
           end
           for _ = current, #buffer do
-            local prompt = buffer [current]:match "^%s*>>%s+(.*)"
+            local prompt = buffer [current]:match "^%s*>%s+(.*)"
             if not prompt then
               break
             end
@@ -151,7 +151,7 @@ function DoccoTest:test (filenames)
             current = current + 1
           end
           for _ = current, #buffer do
-            local prompt = buffer [current]:match "^%s*>>? (.*)"
+            local prompt = buffer [current]:match "^%s*>? (.*)"
             if prompt then
               break
             end
