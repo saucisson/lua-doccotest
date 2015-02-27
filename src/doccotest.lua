@@ -54,6 +54,8 @@ function DoccoTest:translate (string, t)
   return string
 end
 
+local read_pattern  = "%?{([_%a][_%w]*)}"
+local write_pattern = "%!{([_%a][_%w]*)}"
 function DoccoTest:test (filenames)
   assert (type (filenames) == "table")
   self.tests = {}
@@ -172,7 +174,7 @@ io.stderr = io.tmpfile ()
 io.output (io.stdout)
 ]]
           for j = 1, #code do
-            code [j] = code [j]:gsub ("!{([%w-_}]+)}", function (name)
+            code [j] = code [j]:gsub (write_pattern, function (name)
               return variables [name] or ""
             end)
           end
@@ -238,7 +240,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
           local patterns = {}
           for i = 1, #result do
             local line = result [i]
-            line = line:gsub ("!{([%w-_]+)}", function (name)
+            line = line:gsub (write_pattern, function (name)
               return variables [name] or ""
             end)
             line = line:gsub ("%(%.%.%.%)%s*$", "")
@@ -265,7 +267,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
           end
           local extract = {}
           local pattern = "^" .. table.concat (patterns) .. "$"
-          pattern = pattern:gsub ("%%%?{([%w-_]+)}", function (name)
+          pattern = pattern:gsub ("%%" .. read_pattern, function (name)
             extract [#extract+1] = name
             return "([^\n\r]*)"
           end)
