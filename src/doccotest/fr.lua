@@ -3,7 +3,7 @@ return {
     ["input-help"    ] = "chemin vers le fichier source",
     ["inputs-help"   ] = "chemins vers les autres fichiers sources",
     ["output-help"   ] = "chemin vers le fichier de sortie",
-    ["format-help"   ] = "format de sortie: TAP",
+    ["format-help"   ] = "format de sortie: vide ou TAP",
     ["verbose-help"  ] = "mode verbeux",
     ["unknown-format"] = "!{white redbg}Le format de sortie %{format} n'est pas reconnu.",
     ["read-success"  ] = "Le fichier source %{filename} est ouvert en lecture.",

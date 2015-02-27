@@ -1,7 +1,6 @@
 #! /usr/bin/env lua
 
 local defaults = {
-  format="TAP",
   output="test-results.txt",
 }
 
@@ -32,8 +31,7 @@ cli:add_option (
 )
 cli:add_option (
   "--format=<format>",
-  DoccoTest:translate "format-help",
-  tostring (defaults.format)
+  DoccoTest:translate "format-help"
 )
 cli:add_flag (
   "-v, --verbose",
@@ -64,7 +62,10 @@ end
 
 DoccoTest:test    (args.inputs)
 DoccoTest:summary ()
-if args.format:lower () == "tap" then
+
+if args.format == "" then
+  -- nothing to do
+elseif args.format:lower () == "tap" then
   DoccoTest:tap (args.output)
 else
   logger:error (DoccoTest:translate ("unknown-format", {

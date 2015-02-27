@@ -3,7 +3,7 @@ return {
     ["input-help"    ] = "path to the source code file",
     ["inputs-help"   ] = "paths to other source code files",
     ["output-help"   ] = "path to the output file",
-    ["format-help"   ] = "output format: TAP",
+    ["format-help"   ] = "output format: nothing or TAP",
     ["verbose-help"  ] = "enable verbose mode",
     ["unknown-format"] = "!{white redbg}Output format %{format} is not recognized.",
     ["read-success"  ] = "Input file %{filename} opened for reading.",
