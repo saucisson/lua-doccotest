@@ -1,9 +1,9 @@
 package = "doccotest"
-version = "0.1-1"
+version = "0.1-2"
 
 source = {
   url = "git://github.com/saucisson/lua-doccotest",
-  tag = "version-0.1-1",
+  tag = "version-0.1-2",
 }
 
 description = {
