@@ -108,6 +108,13 @@ function DoccoTest:test (filenames)
             buffer = {}
           end
         end
+        if from then
+          sessions [#sessions+1] = {
+            from   = from,
+            to     = to,
+            buffer = buffer,
+          }
+        end
       end
       local ring      = nil
       local variables = nil
@@ -276,7 +283,7 @@ return io.stdout:read "*all", io.stderr:read "*all"
             return "([^\n\r]*)"
           end)
           stdout = stdout:gsub ("\27%[[%d;]+m", "")
-          stdout = stdout:gsub ("%c+", "")
+--          stdout = stdout:gsub ("%c+", "")
           local matches = { stdout:match (pattern) }
           if #matches ~= 0 then
             self.logger:info (self:translate ("test-success", {
