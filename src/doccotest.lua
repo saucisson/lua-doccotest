@@ -277,13 +277,12 @@ return io.stdout:read "*all", io.stderr:read "*all"
             end
           end
           local extract = {}
-          local pattern = "^" .. table.concat (patterns) .. "$"
+          local pattern = "^.*" .. table.concat (patterns) .. "$"
           pattern = pattern:gsub ("%%" .. read_pattern, function (name)
             extract [#extract+1] = name
-            return "([^\n\r]*)"
+            return "([^\"\n\r]*)"
           end)
           stdout = stdout:gsub ("\27%[[%d;]+m", "")
---          stdout = stdout:gsub ("%c+", "")
           local matches = { stdout:match (pattern) }
           if #matches ~= 0 then
             self.logger:info (self:translate ("test-success", {
