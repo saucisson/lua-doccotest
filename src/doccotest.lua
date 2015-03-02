@@ -5,12 +5,35 @@ DoccoTest.__index = DoccoTest
 local i18n       = require "i18n"
 local colors     = require "ansicolors"
 local rings      = require "rings"
+local serpent    = require "serpent"
 local logging    = require "logging"
 logging.console  = require "logging.console"
-local has_luacov = pcall (require, "luacov")
 
 local string_metatable = getmetatable ""
 string_metatable.__mod = require "i18n.interpolate"
+
+function string:quote ()
+  if not (self:find "\n" or self:find "\r") then
+    if not self:find ('"') then
+      return '"' .. self .. '"'
+    elseif not self:find ("'") then
+      return "'" .. self .. "'"
+    end
+  end
+  local pattern = ""
+  while true do
+    if not (   self:find ("%[" .. pattern .. "%[")
+            or self:find ("%]" .. pattern .. "%]")) then
+      return "[" .. pattern .. "[" .. self .. "]" .. pattern .. "]"
+    end
+    pattern = pattern .. "="
+  end
+end
+
+-- http://lua-users.org/wiki/StringTrim (trim6)
+function string:trim ()
+  return self:match "^()%s*$" and "" or self:match "^%s*(.*%S)"
+end
 
 function DoccoTest.new ()
   local result = setmetatable ({
@@ -57,6 +80,62 @@ end
 
 local read_pattern  = "%?{([_%a][_%w]*)}"
 local write_pattern = "%!{([_%a][_%w]*)}"
+local test_pattern  = [[
+local code = %{code}
+function print (...)
+  local args = { ... }
+  for i = 1, #args do
+    io.write (tostring (args [i]))
+    if i ~= #args then
+      io.write "\t"
+    end
+  end
+  io.write "\n"
+end
+__TEST__  = true
+io.stdout = io.tmpfile ()
+io.stderr = io.tmpfile ()
+io.output (io.stdout)
+pcall (require, "luacov")
+local serpent = require "serpent"
+local chunk, err = loadstring (code)
+if not chunk then
+  io.stderr:write (err)
+  error (err)
+end
+local success, result = pcall (chunk)
+if not success and type (result) ~= "table" then
+  result = result:match (": (.*)")
+end
+return serpent.line ({
+  success = success,
+  result  = result,
+}, {
+  sortkeys = true,
+  compact  = true,
+  fatal    = false,
+  nocode   = true,
+  comment  = false,
+})
+]]
+
+local function compare (lhs, rhs)
+  if type (lhs) ~= type (rhs) then
+    return false
+  end
+  if type (lhs) ~= "table" then
+    return lhs == rhs
+  end
+  for k in pairs (lhs) do
+    local l = lhs [k]
+    local r = rhs [k]
+    local result = compare (l, r)
+    if not result then
+      return false
+    end
+  end
+  return true
+end
 
 function DoccoTest:test (filenames)
   assert (type (filenames) == "table")
@@ -77,272 +156,163 @@ function DoccoTest:test (filenames)
         filename = filename,
       }
       self.tests [#self.tests+1] = tests
-      local sessions = {}
-      do
-        local line_number = 0
-        local from        = nil
-        local to          = nil
-        local buffer      = {}
-        for line in file:lines () do
-          line_number = line_number + 1
-          local comment = line:match "^%s*%-%-(.*)"
-          if comment then
-            local code = comment:match "^    (.*)"
-                      or comment:match "^%t(.*)"
-            if code then
-              if not from then
-                from = line_number
-              end
-              to = line_number
-              buffer [#buffer+1] = code
-            end
-          end
-          if from and to ~= line_number then
-            sessions [#sessions+1] = {
-              from   = from,
-              to     = to,
-              buffer = buffer,
-            }
-            from   = nil
-            to     = nil
-            buffer = {}
-          end
-        end
-        if from then
-          sessions [#sessions+1] = {
-            from   = from,
-            to     = to,
-            buffer = buffer,
-          }
-        end
-      end
-      local ring      = nil
-      local variables = nil
-      for i = 1, #sessions do
-        if not ring then
-          ring = rings.new ()
-        end
-        if not variables then
-          variables = {
-            test = "TEST",
-          }
-        end
-        local session = sessions [i]
-        local buffer  = session.buffer
-        local current = 1
-        while current <= #buffer do
-          local from
-          local to
-          local code   = {}
-          local result = {}
-          do
-            local prompt = buffer [current]:match "^%s*>%s+(.*)"
-            if not prompt then
-              self.logger:debug (self:translate ("no-prompt", {
-                filename = filename,
-                from     = session.from - 1,
-                to       = session.from - 1,
-              }))
-              break
-            end
-            code [#code+1] = prompt
-            from    = current
-            current = current + 1
-          end
-          for _ = current, #buffer do
-            local prompt = buffer [current]:match "^%s*>%s+(.*)"
-            if not prompt then
-              break
-            end
-            code [#code+1] = prompt
-            current = current + 1
-          end
-          for _ = current, #buffer do
-            local prompt = buffer [current]:match "^%s*>? (.*)"
-            if prompt then
-              break
-            end
-            result [#result+1] = buffer [current]
-            current = current + 1
-          end
-          to = current - 1
-          ring:dostring [[
-function print (...)
-  local args = { ... }
-  for i = 1, #args do
-    io.write (tostring (args [i]))
-    if i ~= #args then
-      io.write "\t"
-    end
-  end
-  io.write "\n"
-end
-__TEST__  = true
-io.stdout = io.tmpfile ()
-io.stderr = io.tmpfile ()
-io.output (io.stdout)
-]]
-          for j = 1, #code do
-            code [j] = code [j]:gsub (write_pattern, function (name)
-              return variables [name] or ""
-            end)
-          end
-          local to_run  =
-[[
-local code = [=====[]] .. table.concat (code, "\n") .. [[
-]=====]
-local ok, err
-res, err = loadstring (code)
-if not res then
-  if type (err) ~= "table" then
-    err = tostring (err)
-  else
-    local serpent = require "serpent"
-    err = serpent.line (err, {
-      sortkeys = true,
-      compact  = true,
-      fatal    = false,
-      nocode   = true,
-      comment  = false,
-    })
-  end
-  io.stdout:write ("error: " .. err)
-else
-  res, err = pcall (res)
-  if not res then
-    if type (err) ~= "table" then
-      err = tostring (err)
-    else
-      local serpent = require "serpent"
-      err = serpent.line (err, {
-        sortkeys = true,
-        compact  = true,
-        fatal    = false,
-        nocode   = true,
-        comment  = false,
-      })
-    end
-    io.stdout:write ("error: " .. err)
-  end
-end
-]]
-          if has_luacov then
-            to_run = [[require "luacov"; ]] .. to_run
-          end
-          local ok, err = ring:dostring (to_run)
-          local _, stdout, stderr = ring:dostring [[
-io.stdout:seek "set"
-io.stderr:seek "set"
-return io.stdout:read "*all", io.stderr:read "*all"
-]]
+      local line_number = 0
+      local from
+      local to
+      local code
+      local expectation
+      local result
+      local ring        = rings.new ()
+      local variables   = {}
+      for line in file:lines () do
+        line_number = line_number + 1
+        local ccode        = line
+                             :match "^%s*%-%-    %s*>%s*(.*)$"
+                          or line
+                             :match "^%s*%-%-%t%s*>%s*(.*)$"
+        local ccommand     = line
+                             :match "^%s*%-%-    %s*/([_%a][_%w]*)%s*$"
+                          or line
+                             :match "^%s*%-%-%t%s*/([_%a][_%w]*)%s*$"
+        local cexpectation = line
+                             :match "^%s*%-%-    %s*([^/>].*)$"
+                          or line
+                             :match "^%s*%-%-%t%s*([^/>].*)$"
+        ccommand     = ccommand     and ccommand    :trim () or nil
+        ccode        = ccode        and ccode       :trim () or nil
+        cexpectation = cexpectation and cexpectation:trim () or nil
+        if code and not ccode then
+          to = line_number - 1
+          local test    = test_pattern % { code = code:quote () }
+          code = nil
+          local ok, res = ring:dostring (test)
           if ok then
-            self.logger:debug (self:translate ("chunk-success", {
-              filename = filename,
-              from     = session.from + from - 1,
-              to       = session.from + to   - 1,
-            }))
-          else
-            self.logger:warn (self:translate ("chunk-failure", {
-              filename = filename,
-              from     = session.from + from - 1,
-              to       = session.from + to   - 1,
-              message  = err,
-            }))
-          end
-          local patterns = {}
-          for i = 1, #result do
-            local line = result [i]
-            line = line:gsub (write_pattern, function (name)
-              return variables [name] or ""
-            end)
-            line = line:gsub ("%(%.%.%.%)%s*$", "")
-            -- http://lua-users.org/wiki/StringTrim (trim6)
-            line = line:match "^()%s*$" and "" or line:match "^%s*(.*%S)"
-            if line ~= "" then
-              -- http://stackoverflow.com/questions/9790688/escaping-strings-for-gsub
-              line = line:gsub ('%%', '%%%%')
-                         :gsub ('%^', '%%%^')
-                         :gsub ('%$', '%%%$')
-                         :gsub ('%(', '%%%(')
-                         :gsub ('%)', '%%%)')
-                         :gsub ('%.', '%%%.')
-                         :gsub ('%[', '%%%[')
-                         :gsub ('%]', '%%%]')
-                         :gsub ('%*', '%%%*')
-                         :gsub ('%+', '%%%+')
-                         :gsub ('%-', '%%%-')
-                         :gsub ('%?', '%%%?')
-                         :gsub ("%%%.%%%.%%%.", ".*")
-              patterns [i] = "%s*" .. line .. "%s*"
-            end
-          end
-          local extract = {}
-          local pattern = "^.*" .. table.concat (patterns) .. "$"
-          pattern = pattern:gsub ("%%" .. read_pattern, function (name)
-            extract [#extract+1] = name
-            return "([^\"\n\r]*)"
-          end)
-          stdout = stdout:gsub ("\27%[[%d;]+m", "")
-          local matches = { stdout:match (pattern) }
-          if #matches ~= 0 then
-            self.logger:info (self:translate ("test-success", {
-              filename = filename,
-              from     = session.from,
-              to       = session.to,
-            }))
+            result = res
             tests [#tests+1] = {
-              id       = #tests + 1,
-              filename = filename,
-              from     = session.from,
-              to       = session.to,
               success  = true,
+              filename = filename,
+              from     = from,
+              to       = to,
             }
-            for j = 1, #matches do
-              local name  = extract [j]
-              local value = matches [j]
-              if name then
-                variables [name] = value
+            self.logger:info (self:translate ("chunk:success", tests [#tests]))
+          else
+            result = nil
+            local _, stderr = ring:dostring [[
+              io.stderr:seek "set"
+              return io.stderr:read "*all"
+            ]]
+            tests [#tests+1] = {
+              success  = false,
+              filename = filename,
+              from     = from,
+              to       = to,
+              message  = stderr,
+            }
+            self.logger:warn (self:translate ("chunk:failure", tests [#tests]))
+          end
+        elseif expectation and not cexpectation then
+          to = line_number - 1
+          if result == nil then
+            tests [#tests+1] = {
+              success  = false,
+              filename = filename,
+              from     = from,
+              to       = to,
+            }
+            self.logger:warn (self:translate ("result:missing", tests [#tests]))
+          else
+            local should_succeed = not expectation:match "^%s*error%s*:%s*(.*)$"
+            if not should_succeed then
+              expectation = expectation:match "^%s*error%s*:%s*(.*)$"
+            end
+            local expected, err = loadstring ("return " .. expectation)
+            if not expected then
+              self.logger:warn (self:translate ("expectation:illegal", {
+                filename = filename,
+                from     = from,
+                to       = to,
+                message  = err,
+              }))
+            else
+              expected = {
+                success = should_succeed,
+                result  = expected (),
+              }
+              local obtained = loadstring ("return " .. result) ()
+              tests [#tests+1] = {
+                success  = compare (expected, obtained),
+                filename = filename,
+                from     = from,
+                to       = to,
+                error    = obtained.success and "" or "error: ",
+                result   = serpent.line (obtained.result, {
+                  sortkeys = true,
+                  compact  = true,
+                  fatal    = false,
+                  nocode   = true,
+                  comment  = false,
+                }),
+              }
+              if tests [#tests].success then
+                self.logger:info (self:translate ("test:success", tests [#tests]))
+              else
+                self.logger:warn (self:translate ("test:failure", tests [#tests]))
               end
             end
+          end
+          expectation = nil
+        end
+        if ccommand == "reset" then
+          self.logger:info (self:translate ("command:reset", {
+            filename = filename,
+            line     = line_number,
+            command  = ccommand,
+          }))
+          ring        = rings.new ()
+          variables   = {}
+          code        = nil
+          expectation = nil
+          result      = nil
+        elseif ccommand ~= nil then
+          self.logger:warn (self:translate ("command:unknown", {
+            filename = filename,
+            line     = line_number,
+            command  = ccommand,
+          }))
+        elseif ccode ~= nil then
+          ccode = ccode:gsub ("^%s*(=)", "return ")
+          if code == nil then
+            code = ccode
+            from = line_number
           else
-            self.logger:info (self:translate ("test-failure", {
-              filename = filename,
-              from     = session.from,
-              to       = session.to,
-              stdout   = stdout,
-              stderr   = stderr,
-            }))
-            tests [#tests+1] = {
-              id       = #tests + 1,
-              filename = filename,
-              from     = session.from,
-              to       = session.to,
-              success  = false,
-              message  = stdout,
-            }
+            code = code .. "\n" .. ccode
+          end
+        elseif cexpectation ~= nil then
+          if expectation == nil then
+            expectation = cexpectation
+            from        = line_number
+          else
+            expectation = expectation .. "\n" .. cexpectation
           end
         end
-        if buffer [#buffer]:match "%(%.%.%.%)%s*$" then
-          self.logger:debug (self:translate ("ring-keep", {
-            filename = filename,
-            from     = session.from,
-            to       = session.to,
-          }))
-        else
-          ring:close ()
-          ring      = nil
-          variables = nil
-          self.logger:debug (self:translate ("ring-close", {
-            filename = filename,
-            from     = session.from,
-            to       = session.to,
-          }))
-        end
       end
-      file:close ()
     end
+    file:close ()
   end
 end
+
+--    > = "x"
+--    "x"
+
+--    > = "x"
+--    "y"
+
+--    > = error "x"
+--    "y"
+
+--    > = a b c
+
+--    /reset
 
 function DoccoTest:tap (filename)
   local file, err = io.open (filename, "w")
