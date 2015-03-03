@@ -50,9 +50,6 @@ function DoccoTest:localize ()
 end
 
 function DoccoTest:translate (t)
-  if type (t) ~= "table" then
-    print (t)
-  end
   t.locale = self.locale
   string = i18n (t._, t)
   string = string:gsub ("!{", "%%{")
@@ -119,7 +116,7 @@ if not chunk then
   error (err)
 end
 local success, result = pcall (chunk)
-if not success and type (result) ~= "table" then
+if not success and type (result) == "string" then
   result = result:match (": (.*)")
 end
 return serpent.line ({
@@ -259,7 +256,8 @@ function DoccoTest:test (filenames)
           code = nil
           local ok, res = self.ring:dostring (test)
           if ok then
-            result = res
+            result      = res
+            expectation = ""
             tests [#tests+1] = {
               _        = "chunk:success",
               success  = true,
@@ -286,6 +284,12 @@ function DoccoTest:test (filenames)
           end
         elseif expectation and not cexpectation then
           to = line_number - 1
+          if not from then
+            from = to
+          end
+          if expectation == "" then
+            expectation = "nil"
+          end
           if result == nil then
             self.logger:warn (self:translate {
               _        = "result:missing",
