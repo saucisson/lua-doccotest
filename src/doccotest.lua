@@ -139,16 +139,19 @@ for k, v in pairs (environment) do
 end
 _G._ = setmetatable ({}, {
   __index = function (self, key)
-    return { __doccotest__var__ = key }
+    return { __doccotest__variable__ = key }
   end,
 })
-return serpent.line (%{expectation}, {
-  sortkeys = true,
-  compact  = true,
-  fatal    = false,
-  nocode   = true,
-  comment  = false,
-})
+local function f (...)
+  return serpent.line (%{expectation}, {
+    sortkeys = true,
+    compact  = true,
+    fatal    = false,
+    nocode   = true,
+    comment  = false,
+  })
+end
+return f "__doccotest__wildcard__"
 ]]
 
 local result_pattern = [[
@@ -166,8 +169,11 @@ return serpent.line (%{result}, {
 })
 ]]
 
+--    > = { a = { c = 1, d = 2, e = {} }, b = 2 }
+--    { a = { ... }, ... }
+
 function DoccoTest:compare (lhs, rhs)
-  if type (lhs) == "table" and lhs.__doccotest__var__ then
+  if type (lhs) == "table" and lhs.__doccotest__variable__ then
     return true
   end
   if type (lhs) ~= type (rhs) then
@@ -176,12 +182,27 @@ function DoccoTest:compare (lhs, rhs)
   if type (lhs) ~= "table" then
     return lhs == rhs
   end
-  for k in pairs (lhs) do
-    local l = lhs [k]
-    local r = rhs [k]
-    local result = self:compare (l, r)
-    if not result then
-      return false
+  local seen_wildcard = false
+  for k, v in pairs (lhs) do
+    if v == "__doccotest__wildcard__" then
+      seen_wildcard = true
+    else
+      local l = lhs [k]
+      local r = rhs [k]
+      local result = self:compare (l, r)
+      if not result then
+        return false
+      end
+    end
+  end
+  if not seen_wildcard then
+    for k, v in pairs (rhs) do
+      local l = lhs [k]
+      local r = rhs [k]
+      local result = self:compare (l, r)
+      if not result then
+        return false
+      end
     end
   end
   return true
@@ -189,8 +210,8 @@ end
 
 function DoccoTest:fill_environment (lhs, rhs)
   if type (lhs) == "table" then
-    if lhs.__doccotest__var__ then
-      self.variables [lhs.__doccotest__var__] = rhs
+    if lhs.__doccotest__variable__ then
+      self.variables [lhs.__doccotest__variable__] = rhs
     else
       for k in pairs (lhs) do
         local l = lhs [k]
