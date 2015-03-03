@@ -35,7 +35,6 @@ build = {
   modules = {
     ["doccotest"   ] = "src/doccotest.lua",
     ["doccotest.en"] = "src/doccotest/en.lua",
-    ["doccotest.fr"] = "src/doccotest/fr.lua",
   },
   install = {
     bin = {
