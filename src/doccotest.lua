@@ -12,24 +12,6 @@ logging.console  = require "logging.console"
 local string_metatable = getmetatable ""
 string_metatable.__mod = require "i18n.interpolate"
 
-function string:quote ()
-  if not (self:find "\n" or self:find "\r") then
-    if not self:find ('"') then
-      return '"' .. self .. '"'
-    elseif not self:find ("'") then
-      return "'" .. self .. "'"
-    end
-  end
-  local pattern = ""
-  while true do
-    if not (   self:find ("%[" .. pattern .. "%[")
-            or self:find ("%]" .. pattern .. "%]")) then
-      return "[" .. pattern .. "[" .. self .. "]" .. pattern .. "]"
-    end
-    pattern = pattern .. "="
-  end
-end
-
 -- http://lua-users.org/wiki/StringTrim (trim6)
 function string:trim ()
   return self:match "^()%s*$" and "" or self:match "^%s*(.*%S)"
@@ -67,20 +49,53 @@ function DoccoTest:localize ()
   end
 end
 
-function DoccoTest:translate (string, t)
-  assert (type (string) == "string")
-  assert (t == nil or type (t) == "table")
-  t = t or {}
+function DoccoTest:translate (t)
+  if type (t) ~= "table" then
+    print (t)
+  end
   t.locale = self.locale
-  string = i18n (string, t)
+  string = i18n (t._, t)
   string = string:gsub ("!{", "%%{")
   string = colors (string)
   return string
 end
 
-local read_pattern  = "%?{([_%a][_%w]*)}"
-local write_pattern = "%!{([_%a][_%w]*)}"
+function DoccoTest.load (_, s)
+  local ring = rings.new ()
+  local ok, result = ring:dostring (s)
+  if not ok then
+    return nil, result
+  end
+  return serpent.load (result, {
+    safe = true,
+  })
+end
+
+function DoccoTest.quote (_, s)
+  return serpent.line (s, {
+    sortkeys = true,
+    compact  = true,
+    fatal    = false,
+    nocode   = true,
+    comment  = false,
+  })
+end
+
+function DoccoTest.dump (_, s)
+  return serpent.line (s, {
+    sortkeys = true,
+    compact  = true,
+    fatal    = false,
+    nocode   = true,
+    comment  = false,
+  })
+end
+
 local test_pattern  = [[
+local environment = %{environment}
+for k, v in pairs (environment) do
+  _G [k] = v
+end
 local code = %{code}
 function print (...)
   local args = { ... }
@@ -119,7 +134,45 @@ return serpent.line ({
 })
 ]]
 
-local function compare (lhs, rhs)
+local expectation_pattern = [[
+local serpent = require "serpent"
+local environment = %{environment}
+for k, v in pairs (environment) do
+  _G [k] = v
+end
+_G._ = setmetatable ({}, {
+  __index = function (self, key)
+    return { __doccotest__var__ = key }
+  end,
+})
+return serpent.line (%{expectation}, {
+  sortkeys = true,
+  compact  = true,
+  fatal    = false,
+  nocode   = true,
+  comment  = false,
+})
+]]
+
+local result_pattern = [[
+local serpent = require "serpent"
+local environment = %{environment}
+for k, v in pairs (environment) do
+  _G [k] = v
+end
+return serpent.line (%{result}, {
+  sortkeys = true,
+  compact  = true,
+  fatal    = false,
+  nocode   = true,
+  comment  = false,
+})
+]]
+
+function DoccoTest:compare (lhs, rhs)
+  if type (lhs) == "table" and lhs.__doccotest__var__ then
+    return true
+  end
   if type (lhs) ~= type (rhs) then
     return false
   end
@@ -129,12 +182,26 @@ local function compare (lhs, rhs)
   for k in pairs (lhs) do
     local l = lhs [k]
     local r = rhs [k]
-    local result = compare (l, r)
+    local result = self:compare (l, r)
     if not result then
       return false
     end
   end
   return true
+end
+
+function DoccoTest:fill_environment (lhs, rhs)
+  if type (lhs) == "table" then
+    if lhs.__doccotest__var__ then
+      self.variables [lhs.__doccotest__var__] = rhs
+    else
+      for k in pairs (lhs) do
+        local l = lhs [k]
+        local r = rhs [k]
+        self:fill_environment (l, r)
+      end
+    end
+  end
 end
 
 function DoccoTest:test (filenames)
@@ -144,26 +211,28 @@ function DoccoTest:test (filenames)
     local filename  = filenames [i]
     local file, err = io.open (filename, "r")
     if not file then
-      self.logger:error (self:translate ("read-failure", {
+      self.logger:warn (self:translate {
+        _        = "read:failure",
         filename = filename,
         message  = err,
-      }))
+      })
     else
-      self.logger:debug (self:translate ("read-success", {
+      self.logger:debug (self:translate {
+        _        = "read:success",
         filename = filename,
-      }))
+      })
       local tests = {
         filename = filename,
       }
       self.tests [#self.tests+1] = tests
+      self.ring      = rings.new ()
+      self.variables = {}
       local line_number = 0
       local from
       local to
       local code
       local expectation
       local result
-      local ring        = rings.new ()
-      local variables   = {}
       for line in file:lines () do
         line_number = line_number + 1
         local ccode        = line
@@ -183,102 +252,113 @@ function DoccoTest:test (filenames)
         cexpectation = cexpectation and cexpectation:trim () or nil
         if code and not ccode then
           to = line_number - 1
-          local test    = test_pattern % { code = code:quote () }
+          local test    = test_pattern % {
+            environment = self:dump  (self.variables),
+            code        = self:quote (code), 
+          }
           code = nil
-          local ok, res = ring:dostring (test)
+          local ok, res = self.ring:dostring (test)
           if ok then
             result = res
             tests [#tests+1] = {
+              _        = "chunk:success",
               success  = true,
               filename = filename,
               from     = from,
               to       = to,
             }
-            self.logger:info (self:translate ("chunk:success", tests [#tests]))
+            self.logger:info (self:translate (tests [#tests]))
           else
             result = nil
-            local _, stderr = ring:dostring [[
+            local _, stderr = self.ring:dostring [[
               io.stderr:seek "set"
               return io.stderr:read "*all"
             ]]
             tests [#tests+1] = {
+              _        = "chunk:failure",
               success  = false,
               filename = filename,
               from     = from,
               to       = to,
               message  = stderr,
             }
-            self.logger:warn (self:translate ("chunk:failure", tests [#tests]))
+            self.logger:warn (self:translate (tests [#tests]))
           end
         elseif expectation and not cexpectation then
           to = line_number - 1
           if result == nil then
-            tests [#tests+1] = {
+            self.logger:warn (self:translate {
+              _        = "result:missing",
               success  = false,
               filename = filename,
               from     = from,
               to       = to,
-            }
-            self.logger:warn (self:translate ("result:missing", tests [#tests]))
+            })
           else
             local should_succeed = not expectation:match "^%s*error%s*:%s*(.*)$"
             if not should_succeed then
               expectation = expectation:match "^%s*error%s*:%s*(.*)$"
             end
-            local expected, err = loadstring ("return " .. expectation)
-            if not expected then
-              self.logger:warn (self:translate ("expectation:illegal", {
+            local ok, expected = self:load (expectation_pattern % {
+              environment = self:dump (self.variables),
+              expectation = expectation,
+            })
+            if not ok then
+              self.logger:warn (self:translate {
+                _        = "expectation:illegal",
                 filename = filename,
                 from     = from,
                 to       = to,
-                message  = err,
-              }))
+                message  = expected,
+              })
             else
               expected = {
                 success = should_succeed,
-                result  = expected (),
+                result  = expected,
               }
-              local obtained = loadstring ("return " .. result) ()
+              local _, obtained = self:load (result_pattern % {
+                environment = "{}",
+                result      = result,
+              })
               tests [#tests+1] = {
-                success  = compare (expected, obtained),
+                success  = self:compare (expected, obtained),
                 filename = filename,
                 from     = from,
                 to       = to,
                 error    = obtained.success and "" or "error: ",
-                result   = serpent.line (obtained.result, {
-                  sortkeys = true,
-                  compact  = true,
-                  fatal    = false,
-                  nocode   = true,
-                  comment  = false,
-                }),
+                result   = self:dump (obtained.result),
               }
               if tests [#tests].success then
-                self.logger:info (self:translate ("test:success", tests [#tests]))
+                self:fill_environment (expected, obtained)
+                tests [#tests]._ = "test:success"
+                self.logger:info (self:translate (tests [#tests]))
               else
-                self.logger:warn (self:translate ("test:failure", tests [#tests]))
+                tests [#tests]._ = "test:failure"
+                self.logger:warn (self:translate (tests [#tests]))
               end
             end
           end
           expectation = nil
         end
         if ccommand == "reset" then
-          self.logger:info (self:translate ("command:reset", {
+          self.logger:info (self:translate {
+            _        = "command:reset",
             filename = filename,
             line     = line_number,
             command  = ccommand,
-          }))
-          ring        = rings.new ()
-          variables   = {}
-          code        = nil
-          expectation = nil
-          result      = nil
+          })
+          self.ring      = rings.new ()
+          self.variables = {}
+          code           = nil
+          expectation    = nil
+          result         = nil
         elseif ccommand ~= nil then
-          self.logger:warn (self:translate ("command:unknown", {
+          self.logger:warn (self:translate {
+            _        = "command:unknown",
             filename = filename,
             line     = line_number,
             command  = ccommand,
-          }))
+          })
         elseif ccode ~= nil then
           ccode = ccode:gsub ("^%s*(=)", "return ")
           if code == nil then
@@ -301,31 +381,20 @@ function DoccoTest:test (filenames)
   end
 end
 
---    > = "x"
---    "x"
-
---    > = "x"
---    "y"
-
---    > = error "x"
---    "y"
-
---    > = a b c
-
---    /reset
-
 function DoccoTest:tap (filename)
   local file, err = io.open (filename, "w")
   if not file then
-    self.logger:debug (self:translate ("write-failure", {
+    self.logger:debug (self:translate {
+      _        = "write:failure",
       filename = filename,
       message  = err,
-    }))
+    })
   else
-    self.logger:debug (self:translate ("write-success", {
+    self.logger:debug (self:translate {
+      _        = "write:success",
       filename = filename,
       message  = err,
-    }))
+    })
     local count = 0
     for _, tests in ipairs (self.tests) do
       count = count + #tests
@@ -333,21 +402,22 @@ function DoccoTest:tap (filename)
     file:write ("1..%{n}\n" % { n = count })
     for _, tests in ipairs (self.tests) do
       for i = 1, #tests do
-        local test = tests [i]
+        local test   = tests [i]
+        test.id      = i
+        test.message = self:translate (test)
         if test.success then
           file:write ("ok %{id} - %{filename}:%{from}--%{to}\n" % test)
         else
           file:write ("not ok %{id} - %{filename}:%{from}--%{to}\n" % test)
-          local message = test.message
-          message = message:gsub ("^", "    ")
-          file:write (message .. "\n")
         end
+        file:write ("    " .. test.message .. "\n")
       end
     end
   end
-  self.logger:debug (self:translate ("tap-done", {
-    filename  = filename,
-  }))
+  self.logger:info (self:translate {
+    _        = "tap:done",
+    filename = filename,
+  })
 end
 
 function DoccoTest:summary ()
@@ -366,22 +436,24 @@ function DoccoTest:summary ()
         failures = failures + 1
       end
     end
-    self.logger:info (self:translate ("summary", {
+    self.logger:info (self:translate {
+      _         = "summary",
       filename  = tests.filename,
       total     = #tests,
       successes = successes,
       failures  = failures,
-    }))
+    })
     all_tests     = all_tests     + #tests
     all_successes = all_successes + successes
     all_failures  = all_failures  + failures
   end
-  self.logger:info (self:translate ("summary", {
+  self.logger:info (self:translate {
+    _         = "summary",
     filename  = "all",
     total     = all_tests,
     successes = all_successes,
     failures  = all_failures,
-  }))
+  })
 end
 
 return DoccoTest

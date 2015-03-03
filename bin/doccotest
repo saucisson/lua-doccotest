@@ -1,43 +1,40 @@
 #! /usr/bin/env lua
 
+-- Default values for the program options:
 local defaults = {
   output = "test-results.txt",
   format = "none",
 }
 
-if _G.cli then
-  return defaults
-else
-  _G.cli = true
-end
-
-local DoccoTest  = require "doccotest" . new ()
+local doccotest  = require "doccotest" . new ()
 local cli        = require "cliargs"
 local logging    = require "logging"
-local logger     = DoccoTest.logger
+local logger     = doccotest.logger
 
 cli:set_name (arg [0])
 cli:add_argument (
   "input",
-  DoccoTest:translate "input-help"
+  doccotest:translate { _ = "input:help" }
 )
 cli:optarg (
   "inputs",
-  DoccoTest:translate "inputs-help"
+  doccotest:translate { _ = "inputs:help" },
+  nil,
+  999
 )
 cli:add_option (
   "--output=<filename>",
-  DoccoTest:translate "output-help",
+  doccotest:translate { _ = "output:help" },
   tostring (defaults.output)
 )
 cli:add_option (
   "--format=<format>",
-  DoccoTest:translate "format-help",
+  doccotest:translate { _ = "format:help" },
   tostring (defaults.format)
 )
 cli:add_flag (
   "-v, --verbose",
-  DoccoTest:translate "verbose-help"
+  doccotest:translate { _ = "verbose:help" }
 )
 local args = cli:parse_args ()
 if not args then
@@ -45,33 +42,36 @@ if not args then
   os.exit (1)
 end
 
-if args.inputs == nil then
-  args.inputs = {}
-elseif type (args.inputs) == "string" then
-  if args.inputs ~= "" then
-    args.inputs = { args.inputs }
-  else
-    args.inputs = {}
+-- Fix inputs by inserting the `input` parameter,
+-- and removing the last empty one:
+table.insert (args.inputs, 1, args.input)
+for i = 1, #args.inputs do
+  if args.inputs [i] == "" then
+    args.inputs [i] = nil
+    break
   end
 end
-table.insert (args.inputs, 1, args.input)
 
+-- Set logging level, depending on the selected verbosity:
 if args.verbose then
-  DoccoTest.logger:setLevel (logging.DEBUG)
+  doccotest.logger:setLevel (logging.DEBUG)
 else
-  DoccoTest.logger:setLevel (logging.INFO)
+  doccotest.logger:setLevel (logging.INFO)
 end
 
-DoccoTest:test    (args.inputs)
-DoccoTest:summary ()
+-- Run tests and show summary:
+doccotest:test    (args.inputs)
+doccotest:summary ()
 
+-- If an output format is selected, generate a report:
 if args.format:lower () == "none" then
   -- nothing to do
 elseif args.format:lower () == "tap" then
-  DoccoTest:tap (args.output)
+  doccotest:tap (args.output)
 else
-  logger:error (DoccoTest:translate ("unknown-format", {
-    args.format,
-  }))
+  logger:error (doccotest:translate {
+    _      = "format:unknown",
+    foramt = args.format,
+  })
   os.exit (1)
 end

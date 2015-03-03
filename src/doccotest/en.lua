@@ -1,24 +1,24 @@
 return {
   en = {
-    ["input-help"         ] =
+    ["input:help"         ] =
       "path to the source code file",
-    ["inputs-help"        ] =
+    ["inputs:help"        ] =
       "paths to other source code files",
-    ["output-help"        ] =
+    ["output:help"        ] =
       "path to the output file",
-    ["format-help"        ] =
-      "output format: nothing or TAP",
-    ["verbose-help"       ] =
+    ["format:help"        ] =
+      "output format: none or TAP",
+    ["verbose:help"       ] =
       "enable verbose mode",
-    ["unknown-format"     ] =
+    ["format:unknown"     ] =
       "!{white redbg}Output format %{format} is not recognized.",
-    ["read-success"       ] =
+    ["read:success"       ] =
       "Input file %{filename} opened for reading.",
-    ["read-failure"       ] =
+    ["read:failure"       ] =
       "!{white redbg}Cannot open input file %{filename}, because: %{message}.",
-    ["write-success"      ] =
+    ["write:success"      ] =
       "Output file %{filename} opened for writing.",
-    ["write-failure"      ] =
+    ["write:failure"      ] =
       "!{white redbg}Cannot open output file %{filename}, because: %{message}.",
     ["chunk:success"      ] =
       "!{green}%{filename}:%{from}--%{to}: chunk has succeeded.",
@@ -27,17 +27,17 @@ return {
     ["command:reset"    ] =
       "!{white bluebg}%{filename}:%{line}: state has been reset.",
     ["command:unknown"    ] =
-      "!{white redbg}Unknown command at %{filename}:%{line}: %{command}.",
+      "!{white redbg}%{filename}:%{line}: unknown command %{command}.",
     ["test:success"       ] =
       "!{green}%{filename}:%{from}--%{to}: test has succeeded.",
     ["test:failure"       ] =
       "!{red}%{filename}:%{from}--%{to}: test has failed, obtained %{error}%{result}.",
     ["result:missing"     ] =
-      "!{red}Missing test before %{filename}:%{from}--%{to}.",
+      "!{yellow}%{filename}:%{from}--%{to} does not refer to any test.",
     ["expectation:illegal"] =
-      "!{red}Expectation at %{filename}:%{from}--%{to} is illegal: %{message}.",
-    ["tap-done"           ] =
-      "TAP output done in %{filename}.",
+      "!{red}%{filename}:%{from}--%{to} is illegal: illegal expectation, because %{message}.",
+    ["tap:done"           ] =
+      "TAP report has been output in !{bluebg white}%{filename}!{reset}.",
     ["summary"            ] =
       "%{filename}: !{green}%{successes}!{reset} success / !{red}%{failures}!{reset} failure / !{yellow}%{total}!{reset} total.",
   }
