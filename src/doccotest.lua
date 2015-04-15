@@ -2,28 +2,6 @@ local DoccoTest = {}
 
 DoccoTest.__index = DoccoTest
 
-local i18n       = require "i18n"
-local colors     = require "ansicolors"
-local rings      = require "rings"
-local serpent    = require "serpent"
-local logging    = require "logging"
-
-local logger     = logging.new (function (_, level, message)
-  local reset = colors ""
-  if     level == logging.DEBUG then
-    print (colors.noReset "%{blue}" .. message .. reset)
-  elseif level == logging.INFO then
-    print (colors.noReset "%{green}" .. message .. reset)
-  elseif level == logging.WARN then
-    print (colors.noReset "%{red}" .. message .. reset)
-  elseif level == logging.ERROR then
-    print (colors.noReset "%{red whitebg}" .. message .. reset)
-  elseif level == logging.FATAL then
-    print (colors.noReset "%{blink red whitebg}" .. message .. reset)
-  end
-  return true
-end)
-
 local string_metatable = getmetatable ""
 string_metatable.__mod = function (pattern, variables)
   variables = variables or {}
@@ -35,6 +13,31 @@ string_metatable.__mod = function (pattern, variables)
     return previous .. value
   end)
 end
+package.preload ["i18n.interpolate"] = function ()
+  return string_metatable.__mod
+end
+
+local i18n       = require "i18n"
+local colors     = require "ansicolors"
+local rings      = require "rings"
+local serpent    = require "serpent"
+local logging    = require "logging"
+
+local logger     = logging.new (function (_, level, message)
+  local reset = colors ""
+  if     level == logging.DEBUG then
+    print (colors.noReset "%{cyan}" .. message .. reset)
+  elseif level == logging.INFO then
+    print (colors.noReset "%{green}" .. message .. reset)
+  elseif level == logging.WARN then
+    print (colors.noReset "%{red}" .. message .. reset)
+  elseif level == logging.ERROR then
+    print (colors.noReset "%{red whitebg}" .. message .. reset)
+  elseif level == logging.FATAL then
+    print (colors.noReset "%{blink red whitebg}" .. message .. reset)
+  end
+  return true
+end)
 
 -- http://lua-users.org/wiki/StringTrim (trim6)
 function string:trim ()
@@ -288,9 +291,14 @@ function DoccoTest:test (filenames)
       local code
       local expectation
       local result
+      local lineof_pattern = "%0%{size}d" % {
+        size = math.ceil (math.log10 (nb_lines+1))
+      }
+      local function lineof (n)
+        return string.format (lineof_pattern, n)
+      end
       for line_number = 1, nb_lines+1 do
         local line = file:read "*l" or ""
-        line_number = line_number + 1
         local ccode        = line
                              :match "^%s*%-%-    %s*>%s*(.*)$"
                           or line
@@ -314,8 +322,8 @@ function DoccoTest:test (filenames)
             position    = self:quote (self:translate {
               _        = "chunk:position",
               filename = filename,
-              from     = from,
-              to       = to,
+              from     = lineof (from),
+              to       = lineof (to),
             }),
           }
           code = nil
@@ -323,14 +331,13 @@ function DoccoTest:test (filenames)
           if ok then
             result      = res
             expectation = ""
-            tests [#tests+1] = {
+            self.logger:debug (self:translate {
               _        = "chunk:success",
               success  = true,
               filename = filename,
-              from     = from,
-              to       = to,
-            }
-            self.logger:debug (self:translate (tests [#tests]))
+              from     = lineof (from),
+              to       = lineof (to),
+            })
           else
             result = nil
             local _, stderr = self.ring:dostring [[
@@ -341,8 +348,8 @@ function DoccoTest:test (filenames)
               _        = "chunk:failure",
               success  = false,
               filename = filename,
-              from     = from,
-              to       = to,
+              from     = lineof (from),
+              to       = lineof (to),
               message  = stderr,
             }
             self.logger:warn (self:translate (tests [#tests]))
@@ -360,8 +367,8 @@ function DoccoTest:test (filenames)
               _        = "result:missing",
               success  = false,
               filename = filename,
-              from     = from,
-              to       = to,
+              from     = lineof (from),
+              to       = lineof (to),
             })
           else
             local should_succeed = not expectation:match "^%s*error%s*:%s*(.*)$"
@@ -376,8 +383,8 @@ function DoccoTest:test (filenames)
               self.logger:warn (self:translate {
                 _        = "expectation:illegal",
                 filename = filename,
-                from     = from,
-                to       = to,
+                from     = lineof (from),
+                to       = lineof (to),
                 message  = expected,
               })
             else
@@ -392,8 +399,8 @@ function DoccoTest:test (filenames)
               tests [#tests+1] = {
                 success  = self:compare (expected, obtained),
                 filename = filename,
-                from     = from,
-                to       = to,
+                from     = lineof (from),
+                to       = lineof (to),
               }
               if tests [#tests].success then
                 self:fill_environment (expected, obtained)
@@ -401,6 +408,8 @@ function DoccoTest:test (filenames)
                 self.logger:info (self:translate (tests [#tests]))
               elseif obtained.success then
                 tests [#tests].result = self:dump (obtained.result)
+                tests [#tests]._ = "test:failure"
+                self.logger:warn (self:translate (tests [#tests]))
               elseif not obtained.success then
                 obtained.trace = ("\n" .. obtained.trace):gsub ("\n", "\n    ")
                 tests [#tests].result = "error: " .. self:dump (obtained.result)
@@ -416,7 +425,7 @@ function DoccoTest:test (filenames)
           self.logger:info (self:translate {
             _        = "command:reset",
             filename = filename,
-            line     = line_number,
+            line     = lineof (line_number),
             command  = ccommand,
           })
           self.ring      = rings.new ()
@@ -428,7 +437,7 @@ function DoccoTest:test (filenames)
           self.logger:warn (self:translate {
             _        = "command:unknown",
             filename = filename,
-            line     = line_number,
+            line     = lineof (line_number),
             command  = ccommand,
           })
         elseif ccode ~= nil then
