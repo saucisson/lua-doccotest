@@ -408,13 +408,14 @@ function DoccoTest:test (filenames)
                 self.logger:info (self:translate (tests [#tests]))
               elseif obtained.success then
                 tests [#tests].result = self:dump (obtained.result)
-                tests [#tests]._ = "test:failure"
+                tests [#tests].trace  = ""
+                tests [#tests]._      = "test:failure"
                 self.logger:warn (self:translate (tests [#tests]))
               elseif not obtained.success then
                 obtained.trace = ("\n" .. obtained.trace):gsub ("\n", "\n    ")
                 tests [#tests].result = "error: " .. self:dump (obtained.result)
                 tests [#tests].trace  = obtained.trace
-                tests [#tests]._ = "test:failure"
+                tests [#tests]._      = "test:failure"
                 self.logger:warn (self:translate (tests [#tests]))
               end
             end
