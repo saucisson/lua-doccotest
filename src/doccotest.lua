@@ -271,6 +271,11 @@ function DoccoTest:test (filenames)
         _        = "read:success",
         filename = filename,
       })
+      local nb_lines = 0
+      for line in file:lines () do
+        nb_lines = nb_lines+1
+      end
+      file = io.open (filename, "r")
       local tests = {
         filename = filename,
       }
@@ -283,7 +288,8 @@ function DoccoTest:test (filenames)
       local code
       local expectation
       local result
-      for line in file:lines () do
+      for line_number = 1, nb_lines+1 do
+        local line = file:read "*l" or ""
         line_number = line_number + 1
         local ccode        = line
                              :match "^%s*%-%-    %s*>%s*(.*)$"
