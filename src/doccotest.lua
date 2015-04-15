@@ -7,10 +7,34 @@ local colors     = require "ansicolors"
 local rings      = require "rings"
 local serpent    = require "serpent"
 local logging    = require "logging"
-logging.console  = require "logging.console"
+
+local logger     = logging.new (function (_, level, message)
+  local reset = colors ""
+  if     level == logging.DEBUG then
+    print (colors.noReset "%{blue}" .. message .. reset)
+  elseif level == logging.INFO then
+    print (colors.noReset "%{green}" .. message .. reset)
+  elseif level == logging.WARN then
+    print (colors.noReset "%{red}" .. message .. reset)
+  elseif level == logging.ERROR then
+    print (colors.noReset "%{red whitebg}" .. message .. reset)
+  elseif level == logging.FATAL then
+    print (colors.noReset "%{blink red whitebg}" .. message .. reset)
+  end
+  return true
+end)
 
 local string_metatable = getmetatable ""
-string_metatable.__mod = require "i18n.interpolate"
+string_metatable.__mod = function (pattern, variables)
+  variables = variables or {}
+  return pattern:gsub ("(.?)%%{(%w+)}", function (previous, key)
+    if previous == "%" then
+      return
+    end
+    local value = tostring (variables [key])
+    return previous .. value
+  end)
+end
 
 -- http://lua-users.org/wiki/StringTrim (trim6)
 function string:trim ()
@@ -19,7 +43,7 @@ end
 
 function DoccoTest.new ()
   local result = setmetatable ({
-    logger    = logging.console "%message\n",
+    logger = logger,
   }, DoccoTest)
   result:localize ()
   return result
@@ -51,10 +75,7 @@ end
 
 function DoccoTest:translate (t)
   t.locale = self.locale
-  string = i18n (t._, t)
-  string = string:gsub ("!{", "%%{")
-  string = colors (string)
-  return string
+  return i18n (t._, t)
 end
 
 function DoccoTest.load (_, s)
@@ -115,13 +136,22 @@ if not chunk then
   io.stderr:write (err)
   error (err)
 end
-local success, result = pcall (chunk)
-if not success and type (result) == "string" then
-  result = result:match (": (.*)")
+local error, trace
+local success, result = xpcall (chunk, function (err)
+  if type (err) == "string" then
+    error = err:match "%%[.-%%]:.-:%%s*(.*)"
+  else
+    error = err
+  end
+  trace = debug.traceback (%{position}, 3)
+end)
+if not success then
+  result = error
 end
 return serpent.line ({
   success = success,
   result  = result,
+  trace   = trace,
 }, {
   sortkeys = true,
   compact  = true,
@@ -169,9 +199,6 @@ return serpent.line (%{result}, {
 })
 ]]
 
---    > = { a = { c = 1, d = 2, e = {} }, b = 2 }
---    { a = { ... }, ... }
-
 function DoccoTest:compare (lhs, rhs)
   if type (lhs) == "table" and lhs.__doccotest__variable__ then
     return true
@@ -196,7 +223,7 @@ function DoccoTest:compare (lhs, rhs)
     end
   end
   if not seen_wildcard then
-    for k, v in pairs (rhs) do
+    for k in pairs (rhs) do
       local l = lhs [k]
       local r = rhs [k]
       local result = self:compare (l, r)
@@ -207,6 +234,11 @@ function DoccoTest:compare (lhs, rhs)
   end
   return true
 end
+
+--    > error { status = "arg" }
+
+--    > error "arg"
+
 
 function DoccoTest:fill_environment (lhs, rhs)
   if type (lhs) == "table" then
@@ -229,7 +261,7 @@ function DoccoTest:test (filenames)
     local filename  = filenames [i]
     local file, err = io.open (filename, "r")
     if not file then
-      self.logger:warn (self:translate {
+      self.logger:error (self:translate {
         _        = "read:failure",
         filename = filename,
         message  = err,
@@ -272,7 +304,13 @@ function DoccoTest:test (filenames)
           to = line_number - 1
           local test    = test_pattern % {
             environment = self:dump  (self.variables),
-            code        = self:quote (code), 
+            code        = self:quote (code),
+            position    = self:quote (self:translate {
+              _        = "chunk:position",
+              filename = filename,
+              from     = from,
+              to       = to,
+            }),
           }
           code = nil
           local ok, res = self.ring:dostring (test)
@@ -286,7 +324,7 @@ function DoccoTest:test (filenames)
               from     = from,
               to       = to,
             }
-            self.logger:info (self:translate (tests [#tests]))
+            self.logger:debug (self:translate (tests [#tests]))
           else
             result = nil
             local _, stderr = self.ring:dostring [[
@@ -350,14 +388,17 @@ function DoccoTest:test (filenames)
                 filename = filename,
                 from     = from,
                 to       = to,
-                error    = obtained.success and "" or "error: ",
-                result   = self:dump (obtained.result),
               }
               if tests [#tests].success then
                 self:fill_environment (expected, obtained)
                 tests [#tests]._ = "test:success"
                 self.logger:info (self:translate (tests [#tests]))
-              else
+              elseif obtained.success then
+                tests [#tests].result = self:dump (obtained.result)
+              elseif not obtained.success then
+                obtained.trace = ("\n" .. obtained.trace):gsub ("\n", "\n    ")
+                tests [#tests].result = "error: " .. self:dump (obtained.result)
+                tests [#tests].trace  = obtained.trace
                 tests [#tests]._ = "test:failure"
                 self.logger:warn (self:translate (tests [#tests]))
               end
@@ -461,23 +502,23 @@ function DoccoTest:summary ()
         failures = failures + 1
       end
     end
-    self.logger:info (self:translate {
-      _         = "summary",
-      filename  = tests.filename,
-      total     = #tests,
-      successes = successes,
-      failures  = failures,
+    print (self:translate {
+      _        = "summary",
+      filename = tests.filename,
+      total    = colors ("%{yellow}" .. tostring (#tests)),
+      success  = colors ("%{green}"  .. tostring (successes)),
+      failure  = colors ("%{red}"    .. tostring (failures)),
     })
     all_tests     = all_tests     + #tests
     all_successes = all_successes + successes
     all_failures  = all_failures  + failures
   end
-  self.logger:info (self:translate {
-    _         = "summary",
-    filename  = "all",
-    total     = all_tests,
-    successes = all_successes,
-    failures  = all_failures,
+  print (self:translate {
+    _        = "summary",
+    filename = "Overall summary",
+    total    = colors ("%{yellow}" .. tostring (all_tests)),
+    success  = colors ("%{green}"  .. tostring (all_successes)),
+    failure  = colors ("%{red}"    .. tostring (all_failures)),
   })
 end
 
