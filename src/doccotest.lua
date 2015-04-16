@@ -142,7 +142,7 @@ end
 local error, trace
 local success, result = xpcall (chunk, function (err)
   if type (err) == "string" then
-    error = err:match "%%[.-%%]:.-:%%s*(.*)"
+    error = err:match ".*:%s*(.*)"
   else
     error = err
   end
@@ -206,29 +206,48 @@ function DoccoTest:compare (lhs, rhs)
   if type (lhs) == "table" and lhs.__doccotest__variable__ then
     return true
   end
-  if type (lhs) ~= type (rhs) then
+  if type (lhs) ~= type (rhs)
+  and lhs ~= "__doccotest__wildcard__"
+  and rhs ~= "__doccotest__wildcard__" then
     return false
   end
   if type (lhs) ~= "table" then
     return lhs == rhs
+        or lhs == "__doccotest__wildcard__"
+        or rhs == "__doccotest__wildcard__"
   end
-  local seen_wildcard = false
-  for k, v in pairs (lhs) do
+  local lhs_wildcard = false
+  for _, v in pairs (lhs) do
     if v == "__doccotest__wildcard__" then
-      seen_wildcard = true
-    else
-      local l = lhs [k]
-      local r = rhs [k]
-      local result = self:compare (l, r)
-      if not result then
-        return false
-      end
+      lhs_wildcard = true
     end
   end
-  if not seen_wildcard then
-    for k in pairs (rhs) do
+  local rhs_wildcard = false
+  for _, v in pairs (rhs) do
+    if v == "__doccotest__wildcard__" then
+      rhs_wildcard = true
+    end
+  end
+  local seen = {}
+  for k, v in pairs (lhs) do
+    seen [k] = true
+    local l = lhs [k]
+    local r = rhs [k]
+    if r == nil and not rhs_wildcard then
+      return false
+    end
+    local result = self:compare (l, r)
+    if not result then
+      return false
+    end
+  end
+  for k, v in pairs (rhs) do
+    if not seen [k] then
       local l = lhs [k]
       local r = rhs [k]
+      if l == nil and not lhs_wildcard then
+        return false
+      end
       local result = self:compare (l, r)
       if not result then
         return false
@@ -237,11 +256,6 @@ function DoccoTest:compare (lhs, rhs)
   end
   return true
 end
-
---    > error { status = "arg" }
-
---    > error "arg"
-
 
 function DoccoTest:fill_environment (lhs, rhs)
   if type (lhs) == "table" then
@@ -392,6 +406,9 @@ function DoccoTest:test (filenames)
                 success = should_succeed,
                 result  = expected,
               }
+              if not expected.success then
+                expected.trace = "__doccotest__wildcard__"
+              end
               local _, obtained = self:load (result_pattern % {
                 environment = "{}",
                 result      = result,
