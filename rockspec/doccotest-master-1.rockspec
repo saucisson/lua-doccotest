@@ -22,12 +22,12 @@ locco, and embeds the tests and their expected results.
 
 dependencies = {
   "lua >= 5.1",
-  "lua_cliargs ~> 2",
-  "i18n ~> 0",
-  "ansicolors ~> 1",
-  "rings ~> 1",
-  "lualogging ~> 1",
-  "serpent ~> 0",
+  "lua_cliargs >= 2",
+  "i18n >= 0",
+  "ansicolors >= 1",
+  "rings >= 1",
+  "lualogging >= 1",
+  "serpent >= 0",
 }
 
 build = {
