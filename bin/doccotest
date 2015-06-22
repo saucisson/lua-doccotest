@@ -2,6 +2,7 @@
 
 -- Default values for the program options:
 local defaults = {
+  input  = "",
   output = "test-results.txt",
   format = "none",
 }
@@ -19,7 +20,7 @@ cli:add_argument (
 cli:optarg (
   "inputs",
   doccotest:translate { _ = "inputs:help" },
-  nil,
+  tostring (defaults.input),
   999
 )
 cli:add_option (
