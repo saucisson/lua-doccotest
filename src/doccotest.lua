@@ -140,20 +140,22 @@ if not chunk then
   error (err)
 end
 local error, trace
-local success, result = xpcall (chunk, function (err)
+local results = { xpcall (chunk, function (err)
   if type (err) == "string" then
     error = err:match ".*:%s*(.*)"
   else
     error = err
   end
   trace = debug.traceback (%{position}, 3)
-end)
+end) }
+local success = results [1]
+table.remove (results, 1)
 if not success then
   result = error
 end
 return serpent.line ({
   success = success,
-  result  = result,
+  result  = results,
   trace   = trace,
 }, {
   sortkeys = true,
@@ -375,6 +377,10 @@ function DoccoTest:test (filenames)
           end
           if expectation == "" then
             expectation = "nil"
+          else
+            expectation = "{ %{expectation} }" % {
+              expectation = expectation,
+            }
           end
           if result == nil then
             self.logger:warn (self:translate {
