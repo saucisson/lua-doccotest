@@ -113,6 +113,18 @@ function DoccoTest.dump (_, s)
 end
 
 local test_pattern  = [[
+local function traceback ()
+  local traces = {}
+  local level  = 3
+  repeat
+    local info = debug.getinfo (level, "nlS")
+    traces [#traces+1] = info
+    level = level+1
+  until not info
+  traces [#traces] = nil
+  traces [#traces] = nil
+  return traces
+end
 local environment = %{environment}
 for k, v in pairs (environment) do
   _G [k] = v
@@ -146,12 +158,12 @@ local results = { xpcall (chunk, function (err)
   else
     error = err
   end
-  trace = debug.traceback (%{position}, 3)
+  trace = traceback ()
 end) }
 local success = results [1]
 table.remove (results, 1)
 if not success then
-  result = error
+  results = error
 end
 return serpent.line ({
   success = success,
@@ -342,7 +354,7 @@ function DoccoTest:test (filenames)
               to       = lineof (to),
             }),
           }
-          code = nil
+          code     = nil
           local ok, res = self.ring:dostring (test)
           if ok then
             result      = res
@@ -435,9 +447,31 @@ function DoccoTest:test (filenames)
                 tests [#tests]._      = "test:failure"
                 self.logger:warn (self:translate (tests [#tests]))
               elseif not obtained.success then
-                obtained.trace = ("\n" .. obtained.trace):gsub ("\n", "\n    ")
+                local trace = {}
+                for i = 1, #obtained.trace do
+                  local info = obtained.trace [i]
+                  if     info.what == "C" then
+                    trace [#trace+1] = "    in %{source}: %{what} %{name}" % {
+                      source = info.source:sub (2),
+                      what   = "function",
+                      name   = info.name,
+                    }
+                  elseif info.what == "Lua" then
+                    trace [#trace+1] = "    in %{source}:%{line} %{what} %{name}" % {
+                      source = info.source:sub (2),
+                      what   = info.namewhat,
+                      name   = info.name,
+                      line   = info.currentline,
+                    }
+                  elseif info.what == "main" then
+                    trace [#trace+1] = "    in %{filename}:%{line}" % {
+                      filename = filename,
+                      line     = from + info.currentline -1,
+                    }
+                  end
+                end
                 tests [#tests].result = "error: " .. self:dump (obtained.result)
-                tests [#tests].trace  = obtained.trace
+                tests [#tests].trace  = table.concat (trace, "\n")
                 tests [#tests]._      = "test:failure"
                 self.logger:warn (self:translate (tests [#tests]))
               end

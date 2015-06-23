@@ -33,7 +33,7 @@ return {
     ["test:success"       ] =
       "%{filename}:%{from}--%{to}: test has succeeded.",
     ["test:failure"       ] =
-      "%{filename}:%{from}--%{to}: test has failed, obtained %{result}%{trace}.",
+      "%{filename}:%{from}--%{to}: test has failed\n  %{result}\n%{trace}.",
     ["result:missing"     ] =
       "%{filename}:%{from}--%{to} does not refer to any test.",
     ["expectation:illegal"] =
