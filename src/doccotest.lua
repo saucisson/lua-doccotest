@@ -420,6 +420,9 @@ function DoccoTest:test (filenames)
                 message  = expected,
               })
             else
+              if expected == nil then
+                expected = {}
+              end
               expected = {
                 success = should_succeed,
                 result  = expected,
