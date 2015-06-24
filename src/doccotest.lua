@@ -40,7 +40,7 @@ local logger     = logging.new (function (_, level, message)
 end)
 
 -- http://lua-users.org/wiki/StringTrim (trim6)
-function string:trim ()
+function _G.string:trim ()
   return self:match "^()%s*$" and "" or self:match "^%s*(.*%S)"
 end
 
@@ -55,8 +55,7 @@ end
 function DoccoTest:localize ()
   i18n.load (require "doccotest.en")
   i18n.setLocale "en"
-  local locale = os.getenv "LANG"
-  local language, variant = locale:match "^(%l+)_(%u+)"
+  local language, variant = (os.getenv "LANG"):match "^(%l+)_(%u+)"
   self.locale = "%{language}-%{variant}" % {
     language = language,
     variant  = variant,
@@ -243,7 +242,7 @@ function DoccoTest:compare (lhs, rhs)
     end
   end
   local seen = {}
-  for k, v in pairs (lhs) do
+  for k in pairs (lhs) do
     seen [k] = true
     local l = lhs [k]
     local r = rhs [k]
@@ -255,7 +254,7 @@ function DoccoTest:compare (lhs, rhs)
       return false
     end
   end
-  for k, v in pairs (rhs) do
+  for k in pairs (rhs) do
     if not seen [k] then
       local l = lhs [k]
       local r = rhs [k]
@@ -317,7 +316,7 @@ function DoccoTest:test (filenames)
         })
       end
       local nb_lines = 0
-      for line in file:lines () do
+      for _ in file:lines () do
         nb_lines = nb_lines+1
       end
       file = io.open (filename, "r")
@@ -327,7 +326,6 @@ function DoccoTest:test (filenames)
       self.tests [#self.tests+1] = tests
       self.ring      = rings.new ()
       self.variables = {}
-      local line_number = 0
       local from
       local to
       local code
@@ -462,8 +460,8 @@ function DoccoTest:test (filenames)
                 self.logger:warn (self:translate (tests [#tests]))
               elseif not obtained.success then
                 local trace = {}
-                for i = 1, #obtained.trace do
-                  local info = obtained.trace [i]
+                for z = 1, #obtained.trace do
+                  local info = obtained.trace [z]
                   if     info.what == "C" then
                     trace [#trace+1] = "    in %{source}: %{what} %{name}" % {
                       source = info.source:sub (2),

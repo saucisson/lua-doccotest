@@ -16,6 +16,10 @@ return {
       "Input file %{filename} opened for reading.",
     ["read:failure"       ] =
       "Cannot open input file %{filename}, because: %{message}.",
+    ["lua:success"       ] =
+      "Input file %{filename} is considered as Lua.",
+    ["lua:failure"       ] =
+      "Input file %{filename} is not considered as Lua.",
     ["write:success"      ] =
       "Output file %{filename} opened for writing.",
     ["write:failure"      ] =

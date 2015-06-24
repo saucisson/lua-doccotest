@@ -66,7 +66,7 @@ doccotest:summary ()
 
 -- If an output format is selected, generate a report:
 if args.format:lower () == "none" then
-  -- nothing to do
+  local _ = false -- nothing to do
 elseif args.format:lower () == "tap" then
   doccotest:tap (args.output)
 else
