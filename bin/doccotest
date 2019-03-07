@@ -13,44 +13,30 @@ local logging    = require "logging"
 local logger     = doccotest.logger
 
 cli:set_name (arg [0])
-cli:add_argument (
-  "input",
-  doccotest:translate { _ = "input:help" }
-)
-cli:optarg (
+cli:splat (
   "inputs",
   doccotest:translate { _ = "inputs:help" },
   tostring (defaults.input),
   999
 )
-cli:add_option (
+cli:option (
   "--output=<filename>",
   doccotest:translate { _ = "output:help" },
   tostring (defaults.output)
 )
-cli:add_option (
+cli:option (
   "--format=<format>",
   doccotest:translate { _ = "format:help" },
   tostring (defaults.format)
 )
-cli:add_flag (
+cli:flag (
   "-v, --verbose",
   doccotest:translate { _ = "verbose:help" }
 )
-local args = cli:parse_args ()
+local args = cli:parse ()
 if not args then
   cli:print_help ()
   os.exit (1)
-end
-
--- Fix inputs by inserting the `input` parameter,
--- and removing the last empty one:
-table.insert (args.inputs, 1, args.input)
-for i = 1, #args.inputs do
-  if args.inputs [i] == "" then
-    args.inputs [i] = nil
-    break
-  end
 end
 
 -- Set logging level, depending on the selected verbosity:

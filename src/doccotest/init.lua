@@ -145,7 +145,7 @@ io.stderr = io.tmpfile ()
 io.output (io.stdout)
 pcall (require, "luacov")
 local serpent = require "serpent"
-local chunk, err = loadstring (code)
+local chunk, err = load (code)
 if not chunk then
   io.stderr:write (err)
   error (err)
@@ -363,7 +363,7 @@ function DoccoTest:test (filenames)
               to       = lineof (to),
             }),
           }
-          code     = nil
+          code = nil
           local ok, res = self.ring:dostring (test)
           if ok then
             result      = res
