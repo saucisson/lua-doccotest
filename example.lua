@@ -48,3 +48,14 @@
 -- Variables that have been matched can be used also in expectations:
 --    > return a + 1
 --    b
+
+local function f (x)
+  return x * x
+end
+
+-- It is possible to use the current module in tests,
+-- by `require`ing it and using it within tests:
+--    > local f = require "example"
+--    > return f (2)
+--    4
+return f
