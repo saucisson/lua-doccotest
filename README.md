@@ -36,13 +36,11 @@ Running the command without arguments shows the help message:
     error: bad number of arguments: 1-1000 argument(s) must be specified, not 0;
     re-run with --help for usage.
     Usage: ../bin/doccotest [OPTIONS]  input  [inputs-1 [inputs-2 [...]]]
-    
-    ARGUMENTS: 
-      input               path to the source code file (required)
-      inputs              paths to other source code files
-                          (optional, default: )
-    
-    OPTIONS: 
+
+    ARGUMENTS:
+      inputs              paths to source code files
+
+    OPTIONS:
       --output=<filename> path to the output file (default:
                           test-results.txt)
       --format=<format>   output format: nothing or TAP (default:
@@ -55,6 +53,71 @@ tests. The `output` file is used to generate a report. A report is only
 generated when its format is specified. The only supported format (currently)
 is the [TAP](https://testanything.org/) format.
 
+For instance, try running:
+
+    $ doccotest --verbose example.lua
+
 Writing Tests
 -------------
 
+The code to test is prefixed by at least four spaces and ">",
+and the expected answer is put below.
+Here, `return 1` is tested, and the result `1` is expected:
+
+    --    > return 1
+    --    1
+
+Of course, other data types can be used, for instance:
+
+    --    > return "a"
+    --    "a"
+    --    > return true
+    --    true
+    --    > return { b = 1, a = 2 }
+    --    { a = 2, b = 1 }
+
+Local variables can be defined within a code block:
+
+    --    > local a = 1
+    --    > local b = 2*a
+    --    > return b
+    --    2
+
+But local variables disappear at the beginning of each code block:
+
+    --    > return a
+    --    nil
+
+Global variables, on the contrary, live outside code blocks:
+
+    --    > c = 4
+    --    > return c
+    --    4
+    --    > return c
+    --    4
+
+The `reset` command resets the environment,
+and thus unset global variables:
+
+    --    /reset
+    --    > return c
+    --    nil
+
+It is possible to store a result in a (global) variable:
+
+    --    > return 1
+    --    _.a
+
+And even to extract a value from a table into a global variable:
+
+    --    > return { b = 2 }
+    --    { b = _.b }
+
+These global variables can be used as any other variable:
+
+    --    > return a, b
+    --    1, 2
+
+Variables that have been matched can be used also in expectations:
+    --    > return a + 1
+    --    b
